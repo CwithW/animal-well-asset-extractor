@@ -1,0 +1,76 @@
+<head>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <title>animal well map extractor</title>
+</head>
+
+<body>
+  <div id="info">
+    <p>animal well asset extractor. extract assets from history version of "Animal Well.exe".</p>
+    <p>open the extracted map with <a
+      href="https://github.com/Redcrafter/Animal-Well-editor">Animal Well editor</a> (use a current version of the game exe with the editor; old versions don't work with it).</p>
+    <p> view history versions on steamdb
+      <a href="https://steamdb.info/depot/813231/manifests/">here</a>.
+    </p>
+    <p> for versions up to the 1 December 2022 – 01:35:10 UTC -- 7639476536537434284 version, they have different format, use the old map extractor <a href="http://animal-well-asset-extractor.cwithw.github.io/legacy_map_extractor.html">here</a>.</a></p>
+ 
+  </div>
+  <label for="sizeOfAssetEntry">AssetEntry size:</label>
+  <select id="sizeOfAssetEntry">
+    <option value="40">40</option>
+    <option value="48">48</option>
+  </select>
+  <form enctype="multipart/form-data">
+    <input id="upload" type="file" name="files">
+    <input id="submit" type="button" value="extract">
+  </form>
+  <div id="log">
+  </div>
+  <div id="items">
+
+  </div>
+  <style scoped>
+    #items {
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
+</body>
+<script>
+  function toHex(str) {
+    let hex, i;
+
+    let result = "";
+    for (i = 0; i < str.length; i++) {
+      hex = str.charCodeAt(i).toString(16);
+      result += ("0" + hex).slice(-2);
+    }
+
+    return result
+  }
+  function log(sth) {
+    $("#log").append(sth + "<br>");
+  }
+  $("#upload").on("drop", function (e) {
+    e.preventDefault();
+    document.getElementById("upload").files = e.originalEvent.dataTransfer.files;
+  });
+
+  $("#submit").on("click", function () {
+    let file_data = $("#upload").prop("files")[0];
+    // read file content
+    let reader = new FileReader();
+    reader.onload = function (e) {
+      document.getElementById("log").innerHTML = "";
+      let content = e.target.result;
+      // console.log(content);
+      log("File size: " + content.byteLength);
+      test(content);
+      log("");
+    };
+    reader.readAsArrayBuffer(file_data);
+  });
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="aes1.js"></script>
+<script src="main.js"></script>

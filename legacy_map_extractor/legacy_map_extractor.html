@@ -1,0 +1,116 @@
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <title>animal well map extractor</title>
+</head>
+
+<body>
+    <div id="info">
+        <p>animal well map extractor: extract map from history version of "Animal Well.exe". open the extracted map with <a
+                href="https://github.com/Redcrafter/Animal-Well-editor">Animal Well editor</a> (use a current version of the game exe with the editor; old versions don't work with it).</p>
+        <p> unencrypted map only, which means only some history versions are supported. view history versions on steamdb <a href="https://steamdb.info/depot/813231/manifests/">here</a>.</p>
+        <p> versions up to the 1 December 2022 – 01:35:10 UTC -- 7639476536537434284 version is not encrypted.</p>
+        <p> you can also drop the exe to the upload input.</p>
+    </div>
+    <form enctype="multipart/form-data">
+        <input id="upload" type="file" name="files">
+        <input id="submit" type="button" value="extract">
+    </form>
+    <div id="log">
+    </div>
+</body>
+<script>
+    function toHex(str) {
+        let hex, i;
+
+        let result = "";
+        for (i = 0; i < str.length; i++) {
+            hex = str.charCodeAt(i).toString(16);
+            result += ("0" + hex).slice(-2);
+        }
+
+        return result
+    }
+    function log(sth) {
+        $("#log").append(sth + "<br>");
+    }
+    $("#upload").on("drop", function (e) {
+        e.preventDefault();
+        document.getElementById("upload").files = e.originalEvent.dataTransfer.files;
+    });
+
+    function saveMap(map, offset) {
+        //uint16_t roomCount
+        let roomCount = map.slice(4, 4 + 2);
+        roomCount = roomCount.charCodeAt(0) + roomCount.charCodeAt(1) * 256;
+        log("roomCount: " + roomCount);
+        const headerSize = 16;
+        const roomSize = 0x1b88;
+        let mapActualSize = headerSize + roomCount * roomSize;
+        log("map actual size: " + mapActualSize);
+        map = map.slice(0, mapActualSize);
+        // save blob file as map.map
+        let arrayBuffer = new ArrayBuffer(map.length);
+        let uint8Array = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < map.length; i++) {
+            uint8Array[i] = map.charCodeAt(i);
+        }
+
+        let blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.style.display = "none";
+        a.download = (offset).toString(16) + ".map";
+        a.href = url;
+        $("body").append(a);
+        a.click();
+        setTimeout(function () {
+            a.remove();
+            URL.revokeObjectURL(url);
+        }, 1000);
+    }
+    $("#submit").on("click", function () {
+        console.log("submit clicked");
+        let file_data = $("#upload").prop("files")[0];
+        // read file content
+        let reader = new FileReader();
+        reader.onload = function (e) {
+
+            let content = e.target.result;
+            // console.log(content);
+            log("File size: " + content.length);
+            if (content.slice(0, 2).toString() != "MZ") {
+                log("File is not an exe, wrong file? upload the 'Animal Well.exe' file.");
+                return;
+            }
+            if(content.search("GoodLUcKMyFriEnd") != -1){
+                log("Warning: encryption key detected, this exe may implemented encryption. encrypted asset is not supported at this moment.");
+            }
+            let content0 = content;
+            let sliced = 0;
+            let foundMap = false;
+            while (true) {
+                let index = content0.search("\xFE\xCA\x0D\xF0");
+                console.log(index);
+                if (index == -1) {
+                    if (!foundMap) {
+                        log("map not found");
+                    }
+                    break;
+                }
+                // there may be more than one map.
+                if (content0.slice(index, index + 4) == "\xFE\xCA\x0D\xF0" && content0.slice(index + 12, index + 12 + 4) == "\xFE\xCA\xF0\xF0") {
+                    log("map found, offset: 0x" + (index + sliced).toString(16));
+                    let map = content0.slice(index);
+                    saveMap(map, (index + sliced));
+                    foundMap = true;
+                }
+                // jump to next
+                content0 = content0.slice(index + 4);
+                sliced += index + 4;
+            }
+            log("");
+        };
+        reader.readAsBinaryString(file_data);
+    });
+
+</script>
