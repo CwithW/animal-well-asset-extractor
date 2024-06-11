@@ -16,7 +16,7 @@ const keys = [
 ];
 
 function swapkey(key) {
-    const swap = function(data,a,b){
+    const swap = function (data, a, b) {
         let t = data[a];
         data[a] = data[b];
         data[b] = t;
@@ -117,7 +117,7 @@ class AssetEntry {
         if (this.isEncrypted()) {
             result = "Encrypted " + result;
         }
-        if(this.isUnknownFlag()){
+        if (this.isUnknownFlag()) {
             result = "UnknownFlag " + result;
         }
         return result;
@@ -147,33 +147,35 @@ class AssetEntry {
             || this.type & 256 // old version
         ) > 0;
     }
-    isUnknownFlag(){
+    isUnknownFlag() {
         return (this.type & 128) > 0;
     }
-    async tryDecrypt() {
-        if(!this.isEncrypted()) return this.data;
+    async tryDecrypt(doAlert = true) {
+        if (!this.isEncrypted()) return this.data;
         let iv = this.data.slice(0, 16).toString("hex");
         iv = CryptoJS.enc.Hex.parse(iv);
         let enc = this.data.slice(16).toString("base64");
-        for(const key of keys){
+        for (const key of keys) {
             let decrypted = CryptoJS.AES1.decrypt(enc, CryptoJS.enc.Hex.parse(key), {
-                iv:iv,
+                iv: iv,
                 mode: CryptoJS.mode.CBC,
                 padding: CryptoJS.pad.Pkcs7
             }).toString();
-            console.log(decrypted);
-            if(decrypted.startsWith(swapkey(key))) {
+            // console.log(decrypted);
+            if (decrypted.startsWith(swapkey(key))) {
                 return Buffer.from(decrypted, "hex").slice(16);
             }
         }
-        alert("error: all keys cannot decrypt this asset");
+        if (doAlert) {
+            alert("error: all keys cannot decrypt this asset");
+        }
         return false;
     }
 }
 
-function decryptTest(){
+function decryptTest() {
     iv = CryptoJS.enc.Hex.parse("101112131415161718191a1b1c1d1e1f");
-    CryptoJS.AES1.encrypt("GoodLUcKMyFriEnd", CryptoJS.enc.Hex.parse("476f6f644c55634b4d79467269456e64"),{iv});
+    CryptoJS.AES1.encrypt("GoodLUcKMyFriEnd", CryptoJS.enc.Hex.parse("476f6f644c55634b4d79467269456e64"), { iv });
 }
 
 decryptTest();
@@ -235,7 +237,7 @@ function test(input) {
 }
 async function downloadItem(entry) {
     let data = await entry.tryDecrypt();
-    if(data === false){
+    if (data === false) {
         return;
     }
     let blob = new Blob([data], { type: "application/octet-stream" });
@@ -252,20 +254,21 @@ async function downloadItem(entry) {
     }, 1000);
 }
 
-async function extractEverything(){
-    if(!window.assetEntries){
+async function extractEverything() {
+    if (!window.assetEntries) {
         return;
     }
     let zip = new JSZip();
     let zipFolder = zip.folder("assets");
-    for(let entry of window.assetEntries){
-        let data = await entry.tryDecrypt();
-        if(data === false){
+    for (let entry of window.assetEntries) {
+        let data = await entry.tryDecrypt(false);
+        if (data === false) {
             log(`error: cannot decrypt asset ${entry.index}， ignoring`);
+            continue;
         }
         zipFolder.file(entry.index + entry.getExtension(), data);
     }
-    let content = await zip.generateAsync({type:"blob"});
+    let content = await zip.generateAsync({ type: "blob" });
     let url = URL.createObjectURL(content);
     let a = document.createElement("a");
     a.style.display = "none";
