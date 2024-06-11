@@ -252,6 +252,34 @@ async function downloadItem(entry) {
     }, 1000);
 }
 
+async function extractEverything(){
+    if(!window.assetEntries){
+        return;
+    }
+    let zip = new JSZip();
+    let zipFolder = zip.folder("assets");
+    for(let entry of window.assetEntries){
+        let data = await entry.tryDecrypt();
+        if(data === false){
+            log(`error: cannot decrypt asset ${entry.index}， ignoring`);
+        }
+        zipFolder.file(entry.index + entry.getExtension(), data);
+    }
+    let content = await zip.generateAsync({type:"blob"});
+    let url = URL.createObjectURL(content);
+    let a = document.createElement("a");
+    a.style.display = "none";
+    a.download = "assets.zip";
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+        a.remove();
+        URL.revokeObjectURL(url);
+    }, 1000);
+}
+window.extractEverything = extractEverything;
+
 
 /*
    std::string ext = ".bin";

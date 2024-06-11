@@ -12,7 +12,7 @@
       <a href="https://steamdb.info/depot/813231/manifests/">here</a>.
     </p>
     <p> for versions up to the 1 December 2022 – 01:35:10 UTC -- 7639476536537434284 version, they have different format, use the old map extractor <a href="https://cwithw.github.io/animal-well-asset-extractor/legacy_map_extractor.html">here</a>.</a></p>
- 
+    <p> you can also drag and drop the exe to the upload input.</p>
   </div>
   <label for="sizeOfAssetEntry">AssetEntry size:</label>
   <select id="sizeOfAssetEntry">
@@ -23,6 +23,7 @@
     <input id="upload" type="file" name="files">
     <input id="submit" type="button" value="extract">
   </form>
+  <button onclick="extractEverything()">Extract everything below into a zip archive</button>
   <div id="log">
   </div>
   <div id="items">
@@ -72,5 +73,6 @@
 
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js" integrity="sha512-E8QSvWZ0eCLGk4km3hxSsNmGWbLtSCSUcewDQPQWZF6pEU8GlT8a5fF32wOl1i8ftdMhssTrF/OhyGWwonTcXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="jszip.min.js"></script>
 <script src="aes1.js"></script>
 <script src="main.js"></script>
