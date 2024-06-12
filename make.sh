@@ -2,6 +2,8 @@
 set -e
 set -x
 
+MODE=${1:-production}
+mkdir -p ./dist
 rm -rf ./dist/*
-npx webpack
+npx webpack --mode=$MODE
 cp ./extra/* ./dist/

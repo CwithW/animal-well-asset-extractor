@@ -97,6 +97,7 @@ class AssetEntry {
         this.ptr = Number(data.readBigUInt64LE(8));
         this.length = data.readUInt32LE(16);
         this.index = index;
+        this.key = undefined;
     }
     get typeWithoutBits() {
         return this.type & 0b00111111;
@@ -163,6 +164,7 @@ class AssetEntry {
             }).toString();
             // console.log(decrypted);
             if (decrypted.startsWith(swapkey(key))) {
+                this.key = key;
                 return Buffer.from(decrypted, "hex").slice(16);
             }
         }
@@ -184,12 +186,12 @@ decryptTest();
 function test(input) {
 
     load().then((PE) => {
-        // window.PE = PE;
+        window.PE = PE;
         // load and parse data
         let data = Buffer.from(input);
         // (the Node.js Buffer instance can be specified directly to NtExecutable.from)
         let exe = PE.NtExecutable.from(data);
-        // window.exe = exe;
+        window.exe = exe;
         // get section data
 
         let dataSection = exe.getAllSections().filter((section) => section.info.name === '.data')[0];
@@ -283,6 +285,93 @@ async function extractEverything() {
 }
 window.extractEverything = extractEverything;
 
+async function addCring() {
+    if (!window.assetEntries) {
+        alert("No assets loaded");
+        return;
+    }
+    // find the map asset
+    let mapAssets = window.assetEntries.filter((entry) => entry.typeWithoutBits == 1);
+    // the overworld map should be the biggest one
+    mapAssets = mapAssets.sort((a, b) => b.length - a.length);
+    let mapAsset = null;
+    let mapDecrypted = null;
+    for (let entry of mapAssets) {
+        let data = await entry.tryDecrypt(false);
+        if (data === false) continue;
+        let mapData = Buffer.from(data);
+        let magic = mapData.slice(0, 4).toString('hex');
+        if (magic == "feca0df0") {
+            mapAsset = entry;
+            mapDecrypted = mapData;
+            break;
+        }
+    }
+    if (!mapAsset) {
+        alert("Cannot find map asset");
+        return;
+    }
+    log("Map asset found: " + mapAsset.toPrettyString());
+    // find GS object
+    let mapDataHex = mapDecrypted.toString('hex');
+    let newMapDataHex = mapDataHex.replace(/[0-9abcdef]{8}49000000/g, "a100000049000000");
+    if (newMapDataHex == mapDataHex) {
+        alert("Cannot find GS tile to replace");
+        return;
+    }
+    if (mapAsset.isEncrypted()) {
+        let key = mapAsset.key;
+        if (!key) {
+            alert("no key even if decryption is success?");
+            return;
+        }
+        let iv = "79743f763d6451773477395767586351";
+        // prepend swapped key to the data
+        newMapDataHex = swapkey(key) + newMapDataHex;
+        let encrypted = CryptoJS.AES1.encrypt(CryptoJS.enc.Hex.parse(newMapDataHex), CryptoJS.enc.Hex.parse(key),
+            {
+                iv: CryptoJS.enc.Hex.parse(iv),
+                mode: CryptoJS.mode.CBC,
+                // padding: CryptoJS.pad.Pkcs7
+                padding: CryptoJS.pad.NoPadding
+            });
+        newMapDataHex = Buffer.from(encrypted.toString(), 'base64').toString('hex');
+        // prepend iv to the encrypted data
+        newMapDataHex = iv + newMapDataHex;
+    }
+    let newMapData = Buffer.from(newMapDataHex, 'hex');
+    if (newMapData.length > mapAsset.length) {
+        alert("new map data length mismatch, " + `wanted at most ${mapAsset.length}, got ${newMapData.length} bytes`);
+        return;
+    }
+    let exe = window.exe;
+    let rdata_section = exe.getAllSections().filter((section) => section.info.name === '.rdata')[0];
+    let rdata_offset = rdata_section.info.virtualAddress + exe.getImageBase();
+    let newMapDataOffset = mapAsset.ptr - rdata_offset;
+    // replace the rdata
+    let rdataBuffer = Buffer.from(rdata_section.data);
+    rdataBuffer.set(newMapData, newMapDataOffset);
+    rdata_section.data = rdataBuffer;
+
+
+    // generate a new exe
+    let newbin = exe.generate();
+
+    let blob = new Blob([Buffer.from(newbin)], { type: "application/octet-stream" });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
+    a.style.display = "none";
+    a.download = "Animal Well cring.exe"
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+        a.remove();
+        URL.revokeObjectURL(url);
+    }, 1000);
+
+}
+window.addCring = addCring;
 
 /*
    std::string ext = ".bin";
