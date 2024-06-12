@@ -302,9 +302,12 @@ async function addCring() {
         let mapData = Buffer.from(data);
         let magic = mapData.slice(0, 4).toString('hex');
         if (magic == "feca0df0") {
-            mapAsset = entry;
-            mapDecrypted = mapData;
-            break;
+            // a corner case... the mirrored map is bigger than the real map and causes problem
+            if (mapData.toString('hex').includes("49000000")) {
+                mapAsset = entry;
+                mapDecrypted = mapData;
+                break;
+            }
         }
     }
     if (!mapAsset) {
