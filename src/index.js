@@ -302,7 +302,7 @@ async function addCring() {
         let mapData = Buffer.from(data);
         let magic = mapData.slice(0, 4).toString('hex');
         if (magic == "feca0df0") {
-            // a corner case... the mirrored map is bigger than the real map and causes problem
+            // a corner case... in 20230909 version, the mirrored map is bigger than the real map and causes problem
             if (mapData.toString('hex').includes("49000000")) {
                 mapAsset = entry;
                 mapDecrypted = mapData;
@@ -311,7 +311,7 @@ async function addCring() {
         }
     }
     if (!mapAsset) {
-        alert("Cannot find map asset");
+        alert("Cannot find map asset with GS tile");
         return;
     }
     log("Map asset found: " + mapAsset.toPrettyString());
