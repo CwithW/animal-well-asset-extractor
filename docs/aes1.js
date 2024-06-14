@@ -6,7 +6,7 @@ code.google.com/p/crypto-js/wiki/License
 */
 (function () {
     // Shortcuts
-    var C = CryptoJS;
+    var C = window.CryptoJS; //mod
     var C_lib = C.lib;
     var BlockCipher = C_lib.BlockCipher;
     var C_algo = C.algo;
@@ -165,7 +165,7 @@ code.google.com/p/crypto-js/wiki/License
                 console.log(result);
             }
 
-            printKeySchedule(keySchedule);
+            // printKeySchedule(keySchedule);
 
             let keyScheduleByteArray = [];
             keySchedule.forEach((key) => {
@@ -202,7 +202,7 @@ code.google.com/p/crypto-js/wiki/License
             });
 
             this._keySchedule = keySchedule;
-            printKeySchedule(keySchedule);
+            // printKeySchedule(keySchedule);
             //
 
 

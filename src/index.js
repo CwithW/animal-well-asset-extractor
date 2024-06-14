@@ -1,6 +1,19 @@
 
-window.Buffer = window.Buffer || require("buffer").Buffer;
 const { load } = require('pe-library/cjs');
+let isBrowser = false;
+function polyFill() {
+    if (typeof process !== 'object') { // browser
+        isBrowser = true;
+        window.Buffer = window.Buffer || require("buffer").Buffer;
+    } else { // nodejs, we need window to store things
+        isBrowser = false;
+        (typeof globalThis.window === 'object') || (globalThis.window = {});
+    }
+
+}
+polyFill();
+
+
 
 /*
 static std::array<uint8_t, 16> keys[3] = {
@@ -154,6 +167,7 @@ class AssetEntry {
     async tryDecrypt(doAlert = true) {
         if (!this.isEncrypted()) return this.data;
         let iv = this.data.slice(0, 16).toString("hex");
+        let CryptoJS = window.CryptoJS;
         iv = CryptoJS.enc.Hex.parse(iv);
         let enc = this.data.slice(16).toString("base64");
         for (const key of keys) {
@@ -179,62 +193,72 @@ function decryptTest() {
     iv = CryptoJS.enc.Hex.parse("101112131415161718191a1b1c1d1e1f");
     CryptoJS.AES1.encrypt("GoodLUcKMyFriEnd", CryptoJS.enc.Hex.parse("476f6f644c55634b4d79467269456e64"), { iv });
 }
+// decryptTest();
 
-decryptTest();
 
+async function test(input) {
+    return new Promise((resolve, reject) => {
+        load().then((PE) => {
+            window.PE = PE;
+            // load and parse data
+            let data = Buffer.from(input);
+            // (the Node.js Buffer instance can be specified directly to NtExecutable.from)
+            let exe = PE.NtExecutable.from(data);
+            window.exe = exe;
+            // get section data
 
-function test(input) {
+            let dataSection = exe.getAllSections().filter((section) => section.info.name === '.data')[0];
+            let dataBuffer = Buffer.from(dataSection.data);
 
-    load().then((PE) => {
-        window.PE = PE;
-        // load and parse data
-        let data = Buffer.from(input);
-        // (the Node.js Buffer instance can be specified directly to NtExecutable.from)
-        let exe = PE.NtExecutable.from(data);
-        window.exe = exe;
-        // get section data
+            let assetEntries = [];
+            let ptr = 0;
+            let i = 0;
+            let sizeOfAssetEntry = NaN
+            if (isBrowser) {
+                sizeOfAssetEntry = Number(document.getElementById("sizeOfAssetEntry").options[document.getElementById("sizeOfAssetEntry").selectedIndex].value);
+            } else {
+                sizeOfAssetEntry = window.sizeOfAssetEntry || 40;
+            }
+            if (isNaN(sizeOfAssetEntry)) {
+                throw new Error("Invalid size of asset entry");
+            }
+            while (true) {
+                let sliced = dataBuffer.slice(ptr, ptr + sizeOfAssetEntry);
+                if (sliced.length < sizeOfAssetEntry) break;
+                let entry = new AssetEntry(sliced, i);
+                if (entry.length == 0) break;
+                entry.parseData(exe);
+                assetEntries.push(entry);
 
-        let dataSection = exe.getAllSections().filter((section) => section.info.name === '.data')[0];
-        let dataBuffer = Buffer.from(dataSection.data);
-
-        let assetEntries = [];
-        let ptr = 0;
-        let i = 0;
-        const sizeOfAssetEntry = Number(document.getElementById("sizeOfAssetEntry").options[document.getElementById("sizeOfAssetEntry").selectedIndex].value);
-        if (isNaN(sizeOfAssetEntry)) {
-            throw new Error("Invalid size of asset entry");
-        }
-        while (true) {
-            let sliced = dataBuffer.slice(ptr, ptr + sizeOfAssetEntry);
-            if (sliced.length < sizeOfAssetEntry) break;
-            let entry = new AssetEntry(sliced, i);
-            if (entry.length == 0) break;
-            entry.parseData(exe);
-            assetEntries.push(entry);
-
-            ptr += sizeOfAssetEntry;
-            i++;
-        }
-        window.assetEntries = assetEntries;
-        let itemsDiv = document.getElementById("items");
-        itemsDiv.innerHTML = "";
-        assetEntries.forEach((entry) => {
-            let div = document.createElement("div");
-            div.innerText = entry.toPrettyString();
-            let button = document.createElement("button");
-            button.innerText = "Download";
-            button.onclick = () => {
-                downloadItem(entry);
-            };
-            div.appendChild(button);
-            itemsDiv.appendChild(div);
+                ptr += sizeOfAssetEntry;
+                i++;
+            }
+            window.assetEntries = assetEntries;
+            if (!isBrowser) {
+                return resolve(assetEntries);
+            }
+            let itemsDiv = document.getElementById("items");
+            itemsDiv.innerHTML = "";
+            assetEntries.forEach((entry) => {
+                let div = document.createElement("div");
+                div.innerText = entry.toPrettyString();
+                let button = document.createElement("button");
+                button.innerText = "Download";
+                button.onclick = () => {
+                    downloadItem(entry);
+                };
+                div.appendChild(button);
+                itemsDiv.appendChild(div);
+            });
+            if (assetEntries.length < 10) {
+                log("too few items, try change AssetEntry size");
+            }
+            resolve(assetEntries);
+        }).catch((err) => {
+            window.console.error(err);
+            log("error: " + err);
+            reject(err);
         });
-        if (assetEntries.length < 10) {
-            log("too few items, try change AssetEntry size");
-        }
-    }).catch((err) => {
-        window.console.error(err);
-        log("error: " + err);
     });
 }
 async function downloadItem(entry) {
@@ -260,7 +284,7 @@ async function extractEverything() {
     if (!window.assetEntries) {
         return;
     }
-    let zip = new JSZip();
+    let zip = new window.JSZip();
     let zipFolder = zip.folder("assets");
     for (let entry of window.assetEntries) {
         let data = await entry.tryDecrypt(false);
@@ -270,7 +294,11 @@ async function extractEverything() {
         }
         zipFolder.file(entry.index + entry.getExtension(), data);
     }
+    if (!isBrowser) {
+        return await zip.generateAsync({ type: "nodebuffer" });
+    }
     let content = await zip.generateAsync({ type: "blob" });
+
     let url = URL.createObjectURL(content);
     let a = document.createElement("a");
     a.style.display = "none";
@@ -359,7 +387,9 @@ async function addCring() {
 
     // generate a new exe
     let newbin = exe.generate();
-
+    if (!isBrowser) {
+        return newbin;
+    }
     let blob = new Blob([Buffer.from(newbin)], { type: "application/octet-stream" });
     let url = URL.createObjectURL(blob);
     let a = document.createElement("a");
@@ -376,37 +406,10 @@ async function addCring() {
 }
 window.addCring = addCring;
 
-/*
-   std::string ext = ".bin";
-            switch(item.type) {
-                case AssetType::Text:
-                    ext = ".txt";
-                    break;
-                case AssetType::MapData:
-                case AssetType::Encrypted_MapData:
-                    ext = ".map";
-                    break;
-                case AssetType::Png:
-                case AssetType::Encrypted_Png:
-                    ext = ".png";
-                    break;
-                case AssetType::Ogg:
-                case AssetType::Encrypted_Ogg:
-                    ext = ".ogg";
-                    break;
-                case AssetType::SpriteData:
-                    ext = ".sprite";
-                    break;
-                case AssetType::Shader:
-                    ext = ".shader";
-                    break;
-                case AssetType::Font:
-                    ext = ".font";
-                    break;
-                case AssetType::Encrypted_XPS:
-                    ext = ".xps";
-                    break;
-            }
-                    */
-
 window.test = test;
+
+module.exports = {
+    "loadExe": test,
+    "extractEverything": extractEverything,
+    "addCring": addCring
+}
